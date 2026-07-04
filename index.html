@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<!--
+  Game Clock — a self-contained countdown timer.
+  This code was generated with AI assistance (Anthropic's Claude).
+  Licensed under the MIT License — see the LICENSE file.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0f14" />
+<title>Game Clock</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #131a22;
+    --panel-2: #1b242e;
+    --text: #e6edf3;
+    --muted: #8b9aa7;
+    --line: #243140;
+    --btn-hover: #232f3b;
+    --amber: #ffb020;
+    --red: #ff4d4d;
+    --green: #3ddc84;
+    /* user-customisable colours (Appearance panel) */
+    --primary: #38e1d6;        /* Start button + clock base colour */
+    --primary-text: #06221f;   /* Start button label — auto black/white for contrast */
+    --plus: #3ddc84;           /* +time buttons */
+    --minus: #ffb020;          /* -time buttons */
+    --accent: var(--primary);  /* live clock colour — may switch to amber/red */
+  }
+
+  :root[data-theme="light"] {
+    --bg: #eef1f4;
+    --panel: #ffffff;
+    --panel-2: #e6ebf0;
+    --text: #14202b;
+    --muted: #5c6b78;
+    --line: #cfd8e0;
+    --btn-hover: #d7dee5;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100%;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 4px 0 0;
+  }
+
+  /* ---- Clock ---- */
+  .clock-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 8px 0;
+  }
+
+  #clock {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    transition: color 0.3s ease;
+    font-size: clamp(72px, 22vw, 320px);
+    text-align: center;
+    user-select: none;
+  }
+
+  #clock.pulse { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.97); }
+  }
+
+  /* ---- Final-10s strobe (the clock flashes) ---- */
+  #clock.strobe { animation: clockStrobe 0.22s steps(1, end) infinite; }
+  @keyframes clockStrobe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.1; }
+  }
+
+  .clock-sub {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    min-height: 16px;
+    margin-top: 8px;
+  }
+
+  /* ---- Controls ---- */
+  .controls {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  button {
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease;
+    min-width: 64px;
+  }
+  button:hover { background: var(--btn-hover); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-text);
+    border-color: transparent;
+    flex: 1;
+    min-width: 140px;
+    font-size: 18px;
+    padding: 16px;
+  }
+  .btn-primary:hover { background: var(--primary); filter: brightness(1.08); }
+  .btn-primary.paused { background: var(--amber); color: #2a1c00; }
+
+  .btn-ghost { flex: 1; min-width: 120px; }
+
+  .preset, .adj {
+    padding: 12px 14px;
+    min-width: 0;
+    flex: 1;
+  }
+  .adj-minus { color: var(--minus); }
+  .adj-plus { color: var(--plus); }
+
+  /* ---- Set time inputs ---- */
+  .setter {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .field { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .field label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .field input {
+    width: 76px;
+    text-align: center;
+    font: inherit;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .field input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: -4px;
+  }
+
+  /* ---- Panels (collapsible) ---- */
+  details {
+    width: 100%;
+    max-width: 720px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-top: 14px;
+    overflow: hidden;
+  }
+  summary {
+    cursor: pointer;
+    padding: 14px 16px;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    user-select: none;
+    list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "▾"; float: right; transition: transform 0.2s; }
+  details[open] summary::after { transform: rotate(180deg); }
+  .panel-body { padding: 0 16px 16px; }
+
+  /* ---- Sound rows ---- */
+  .sound-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  .sound-row:first-child { border-top: none; }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #44525f;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 0 rgba(61,220,132,0);
+  }
+  .dot.ok { background: var(--green); box-shadow: 0 0 8px 1px rgba(61,220,132,0.5); }
+  .sound-name { flex: 1; font-size: 14px; }
+  .sound-name small { display: block; color: var(--muted); font-size: 11px; }
+  .sound-row .file-btn { font-size: 13px; padding: 8px 12px; }
+  .sound-row .test-btn { font-size: 13px; padding: 8px 12px; }
+  .sound-row input[type="file"] { display: none; }
+  #soundList.muted .sound-row { opacity: 0.45; }
+  #soundList.muted .test-btn,
+  #soundList.muted .file-btn { opacity: 1; }
+  #soundList {
+    max-height: 260px;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--line);
+    margin-top: 4px;
+  }
+  #soundList::-webkit-scrollbar { width: 10px; }
+  #soundList::-webkit-scrollbar-track { background: transparent; }
+  #soundList::-webkit-scrollbar-thumb {
+    background: #3a4a5a;
+    border-radius: 999px;
+    border: 2px solid var(--panel);
+  }
+
+  /* ---- Option rows (toggle switches) ---- */
+  .opt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .opt-label { font-size: 14px; }
+  .opt-label small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #44525f; border-radius: 999px; transition: background 0.2s;
+  }
+  .switch .slider::before {
+    content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--green); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* Light mode: darken the coloured +/- button text so it reads on the light panel */
+  :root[data-theme="light"] .adj-plus  { color: color-mix(in srgb, var(--plus)  60%, #000); }
+  :root[data-theme="light"] .adj-minus { color: color-mix(in srgb, var(--minus) 60%, #000); }
+
+  /* ---- Colour swatches ---- */
+  .swatch {
+    width: 48px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-width: 0;
+    box-shadow: inset 0 0 0 2px var(--panel);
+  }
+  .swatch:hover { filter: brightness(1.06); }
+
+  /* ---- Colour picker popover (hue ring + SV square) ---- */
+  .cp-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .cp-backdrop[hidden] { display: none; }
+  .cp-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    width: min(300px, 92vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+  .cp-canvas {
+    width: 240px;
+    height: 240px;
+    max-width: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .cp-row { display: flex; gap: 10px; width: 100%; align-items: center; }
+  .cp-preview {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .cp-hex {
+    flex: 1;
+    font: inherit;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .cp-hex:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .cp-actions { display: flex; gap: 10px; width: 100%; }
+
+  .footer {
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+  kbd {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-family: inherit;
+  }
+
+  @media (max-width: 480px) {
+    .field input { width: 64px; font-size: 20px; }
+    .footer { display: none; }
+    /* keep the clock from crowding the controls / open panels on phones */
+    #clock { font-size: clamp(56px, 17vw, 160px); }
+  }
+</style>
+</head>
+<body>
+  <h1>Game Clock</h1>
+
+  <div class="clock-wrap">
+    <div>
+      <div id="clock">00:00</div>
+      <div class="clock-sub" id="status">Ready</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button id="startBtn" class="btn-primary">Start</button>
+      <button id="resetBtn" class="btn-ghost">Reset</button>
+      <button id="testSoundBtn" class="btn-ghost">Test Sound</button>
+    </div>
+
+    <div class="row" id="adjustRow">
+      <button class="adj adj-minus" data-adj="-60">−1:00</button>
+      <button class="adj adj-minus" data-adj="-10">−0:10</button>
+      <button class="adj adj-plus" data-adj="10">+0:10</button>
+      <button class="adj adj-plus" data-adj="60">+1:00</button>
+    </div>
+  </div>
+
+  <details id="setPanel" open>
+    <summary>Set the clock</summary>
+    <div class="panel-body">
+      <div class="setter">
+        <div class="field">
+          <label for="hh">Hours</label>
+          <input id="hh" type="number" min="0" max="99" inputmode="numeric" value="0" />
+        </div>
+        <div class="field">
+          <label for="mm">Minutes</label>
+          <input id="mm" type="number" min="0" max="59" inputmode="numeric" value="20" />
+        </div>
+        <div class="field">
+          <label for="ss">Seconds</label>
+          <input id="ss" type="number" min="0" max="59" inputmode="numeric" value="0" />
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="section-label">Presets</div>
+      <div style="height:8px"></div>
+      <div class="row">
+        <button class="preset" data-min="5">5 min</button>
+        <button class="preset" data-min="10">10 min</button>
+        <button class="preset" data-min="20">20 min</button>
+        <button class="preset" data-min="45">45 min</button>
+      </div>
+    </div>
+  </details>
+
+  <details id="soundPanel">
+    <summary>Sound &amp; start options</summary>
+    <div class="panel-body">
+      <div class="opt-row">
+        <span class="opt-label">Sound cues<small>Master on/off for all cues</small></span>
+        <label class="switch"><input type="checkbox" id="soundToggle" checked><span class="slider"></span></label>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Wait for start sound<small>Begin the countdown only after the start clip finishes</small></span>
+        <label class="switch"><input type="checkbox" id="waitForStart" checked><span class="slider"></span></label>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Background alarm<small>Keep the countdown &amp; sounds firing when the screen is locked or you switch apps (may pause other music)</small></span>
+        <label class="switch"><input type="checkbox" id="bgAlarm" checked><span class="slider"></span></label>
+      </div>
+      <div id="soundList"></div>
+    </div>
+  </details>
+
+  <details id="appearancePanel">
+    <summary>Appearance</summary>
+    <div class="panel-body">
+      <div class="opt-row">
+        <span class="opt-label">Light mode<small>Switch between dark and light theme</small></span>
+        <label class="switch"><input type="checkbox" id="lightToggle"><span class="slider"></span></label>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Warning colors<small>Clock turns amber at 0:30, red at 0:10 (off = one colour the whole time)</small></span>
+        <label class="switch"><input type="checkbox" id="warnToggle" checked><span class="slider"></span></label>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Strobe final 10s<small>Flash the clock during the last 10 seconds</small></span>
+        <label class="switch"><input type="checkbox" id="strobeToggle" checked><span class="slider"></span></label>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Primary colour<small>Start button &amp; clock</small></span>
+        <button type="button" class="swatch" data-color="primary" aria-label="Choose primary colour"></button>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Add-time colour<small>+0:10 / +1:00 buttons</small></span>
+        <button type="button" class="swatch" data-color="plus" aria-label="Choose add-time colour"></button>
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Remove-time colour<small>−0:10 / −1:00 buttons</small></span>
+        <button type="button" class="swatch" data-color="minus" aria-label="Choose remove-time colour"></button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="resetColors" class="btn-ghost">Reset colours</button>
+      </div>
+    </div>
+  </details>
+
+  <div class="footer">
+    <kbd>Space</kbd> start / pause &nbsp;·&nbsp; <kbd>R</kbd> reset &nbsp;·&nbsp;
+    Browsers unlock audio after your first Start or Test sound.
+  </div>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   DEFAULT_SRC — change these paths to use different filenames.
+   Files live in a "sounds/" folder next to index.html.
+   =========================================================================== */
+const DEFAULT_SRC = {
+  start:    "sounds/start.mp3",     // 3-2-1 start countdown
+  fivemin:  "sounds/5min.mp3",      // 5 minutes remaining
+  onemin:   "sounds/1min.mp3",      // 1 minute remaining
+  thirty:   "sounds/30s.mp3",       // 30 seconds remaining
+  ten:      "sounds/10s.mp3",       // 10 seconds remaining
+  gameover: "sounds/gameover.mp3",  // game over
+  test:     "sounds/test.mp3",      // played by the "Test sound" button
+};
+
+const CUES = [
+  { key: "start",    label: "Start countdown",  note: "Plays on Start" },
+  { key: "fivemin",  label: "5 minutes left",   note: "Fires at 5:00" },
+  { key: "onemin",   label: "1 minute left",    note: "Fires at 1:00" },
+  { key: "thirty",   label: "30 seconds left",  note: "Fires at 0:30" },
+  { key: "ten",      label: "10 seconds left",  note: "Fires at 0:10" },
+  { key: "gameover", label: "Game over",        note: "Fires at 0:00" },
+  { key: "test",     label: "Test sound",       note: "Plays on Test sound button" },
+];
+
+// Countdown warning cues, with the threshold (ms) at which each fires.
+const THRESHOLDS = [
+  { key: "fivemin", ms: 5 * 60 * 1000 },
+  { key: "onemin",  ms: 1 * 60 * 1000 },
+  { key: "thirty",  ms: 30 * 1000 },
+  { key: "ten",     ms: 10 * 1000 },
+];
+
+/* ---- Elements ---- */
+const clockEl   = document.getElementById("clock");
+const statusEl  = document.getElementById("status");
+const startBtn  = document.getElementById("startBtn");
+const resetBtn  = document.getElementById("resetBtn");
+const testSoundBtn = document.getElementById("testSoundBtn");
+const hhEl      = document.getElementById("hh");
+const mmEl      = document.getElementById("mm");
+const ssEl      = document.getElementById("ss");
+const soundList = document.getElementById("soundList");
+const setPanel  = document.getElementById("setPanel");
+const soundPanel = document.getElementById("soundPanel");
+const soundToggleEl = document.getElementById("soundToggle");
+const waitForStartEl = document.getElementById("waitForStart");
+const bgAlarmEl = document.getElementById("bgAlarm");
+const appearancePanel = document.getElementById("appearancePanel");
+const lightToggleEl   = document.getElementById("lightToggle");
+const warnToggleEl    = document.getElementById("warnToggle");
+const strobeToggleEl  = document.getElementById("strobeToggle");
+const resetColorsBtn  = document.getElementById("resetColors");
+const swatchEls = {
+  primary: document.querySelector('.swatch[data-color="primary"]'),
+  plus:    document.querySelector('.swatch[data-color="plus"]'),
+  minus:   document.querySelector('.swatch[data-color="minus"]'),
+};
+
+/* ---- State ---- */
+let totalMs     = 20 * 60 * 1000;  // configured duration (for Reset)
+let remainingMs = totalMs;         // current time left
+let running     = false;
+let endAt       = 0;               // performance.now() timestamp the clock hits 0
+let heartbeat   = null;            // setInterval id — wall-clock tick that survives backgrounding
+const armed     = {};              // cue key -> still allowed to fire?
+let audioUnlocked = false;
+let soundEnabled  = true;          // master on/off for all cues
+let waitForStart  = true;          // begin counting only after start clip ends (default on)
+let bgAlarm       = true;          // keep countdown/sounds alive while screen is locked
+let theme         = "dark";        // "dark" | "light"
+let warningColors = true;          // clock goes amber/red near the end
+let strobeEnabled = true;          // flash the clock in the final 10s (default on)
+const DEFAULT_COLORS = { primary: "#38e1d6", plus: "#3ddc84", minus: "#ffb020" };
+const colors = { ...DEFAULT_COLORS };
+let pendingStart  = false;         // start clip playing, waiting to begin
+let startFallback = null;          // safety timer if "ended" never fires
+let pendingBeginFn = null;         // the deferred begin() listener
+
+/* ---- Audio ---- */
+const audio = {};   // key -> HTMLAudioElement
+const loaded = {};  // key -> bool
+
+/* ---- Keep-alive (background alarm) ----
+   Mobile browsers freeze the page — and the countdown/rAF loop — the moment the
+   screen locks or you switch apps, so cues and the final horn never fire. Playing
+   a silent, looping audio clip keeps the page "active" in the background so the
+   wall-clock heartbeat below keeps ticking and can still fire the sounds. */
+function makeSilentWavURI(seconds) {
+  const sr = 8000, n = sr * seconds;
+  const buf = new ArrayBuffer(44 + n);
+  const dv = new DataView(buf);
+  const wstr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  wstr(0, "RIFF"); dv.setUint32(4, 36 + n, true); wstr(8, "WAVE");
+  wstr(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr, true);
+  dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+  wstr(36, "data"); dv.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) dv.setUint8(44 + i, 128);   // 128 = silence for 8-bit PCM
+  let bin = ""; const u8 = new Uint8Array(buf);
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return "data:audio/wav;base64," + btoa(bin);
+}
+const keepAliveEl = new Audio(makeSilentWavURI(1));
+keepAliveEl.loop = true;
+keepAliveEl.preload = "auto";
+
+function startKeepAlive() {
+  if (!bgAlarm) return;
+  try {
+    keepAliveEl.muted = false;
+    keepAliveEl.currentTime = 0;
+    const p = keepAliveEl.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+function stopKeepAlive() {
+  try { keepAliveEl.pause(); keepAliveEl.currentTime = 0; } catch (e) {}
+}
+
+// Let cue sounds MIX with other audio (Spotify, etc.) instead of stopping it.
+//   "ambient"        -> both play together; on iOS it's silenced by the mute switch.
+//   "transient-solo" -> other audio pauses only during a cue, then resumes; stays
+//                       audible even with the iOS mute switch on.
+// Change this if the trade-off doesn't suit your device.
+const AUDIO_SESSION_TYPE = "ambient";
+function applyAudioSession() {
+  try {
+    if ("audioSession" in navigator) navigator.audioSession.type = AUDIO_SESSION_TYPE;
+  } catch (e) { /* unsupported -> falls back to default behaviour */ }
+}
+
+function makeAudio(key) {
+  const a = new Audio();
+  a.preload = "auto";
+  a.src = DEFAULT_SRC[key];
+  a.addEventListener("canplaythrough", () => setLoaded(key, true), { once: false });
+  a.addEventListener("error", () => setLoaded(key, false));
+  audio[key] = a;
+}
+
+function setLoaded(key, ok) {
+  loaded[key] = ok;
+  const dot = document.querySelector(`.dot[data-key="${key}"]`);
+  if (dot) dot.classList.toggle("ok", ok);
+}
+
+function play(key, force) {
+  if (!soundEnabled && !force) return;   // master mute (Test bypasses with force)
+  const a = audio[key];
+  if (!a) return;
+  try {
+    a.__wantPlay = true;   // priming (unlockAudio) must not pause/reset this clip
+    a.muted = false;
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+// First user gesture: prime every clip so later (timer-driven) cues are allowed.
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  applyAudioSession();
+  // Prime the keep-alive clip within this user gesture so it's allowed to play
+  // (muted) later when the background alarm starts it outside a gesture.
+  try {
+    keepAliveEl.muted = true;
+    const kp = keepAliveEl.play();
+    if (kp && kp.then) kp.then(() => { keepAliveEl.pause(); keepAliveEl.currentTime = 0; keepAliveEl.muted = false; })
+                         .catch(() => { keepAliveEl.muted = false; });
+    else { keepAliveEl.pause(); keepAliveEl.currentTime = 0; keepAliveEl.muted = false; }
+  } catch (e) { /* ignore */ }
+  for (const key of Object.keys(audio)) {
+    const a = audio[key];
+    a.muted = true;
+    const p = a.play();
+    if (p && p.then) {
+      p.then(() => {
+        if (a.__wantPlay) { a.muted = false; return; }  // a real play() arrived; leave it playing
+        a.pause(); a.currentTime = 0; a.muted = false;
+      }).catch(() => { a.muted = false; });
+    } else {
+      if (!a.__wantPlay) { a.pause(); a.currentTime = 0; }
+      a.muted = false;
+    }
+  }
+}
+
+/* ---- Build sound UI ---- */
+function buildSoundUI() {
+  for (const cue of CUES) {
+    makeAudio(cue.key);
+
+    const row = document.createElement("div");
+    row.className = "sound-row";
+
+    const dot = document.createElement("div");
+    dot.className = "dot";
+    dot.dataset.key = cue.key;
+
+    const name = document.createElement("div");
+    name.className = "sound-name";
+    name.innerHTML = `${cue.label}<small>${cue.note} — ${DEFAULT_SRC[cue.key]}</small>`;
+
+    const test = document.createElement("button");
+    test.className = "test-btn";
+    test.textContent = "Test";
+    test.addEventListener("click", () => { unlockAudio(); play(cue.key, true); });
+
+    const fileBtn = document.createElement("button");
+    fileBtn.className = "file-btn";
+    fileBtn.textContent = "Choose file";
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "audio/*";
+    fileBtn.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      audio[cue.key].src = url;
+      audio[cue.key].load();
+      setLoaded(cue.key, true);
+      name.querySelector("small").textContent = `${cue.note} — ${f.name}`;
+    });
+
+    row.append(dot, name, test, fileBtn, input);
+    soundList.appendChild(row);
+  }
+}
+
+/* ---- Time formatting ---- */
+function fmt(ms) {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+/* ---- Render ----
+   Called ~10x/sec by the heartbeat, but the clock only shows whole seconds, so we
+   cache the last-written values and touch the DOM only when something changed.
+   (classList.toggle(name, bool) is already a no-op when the state is unchanged,
+   so pulse/strobe/paused don't need caching.) */
+let lastClockText = null, lastAccent = null, lastBtnText = null;
+
+function render() {
+  const txt = fmt(remainingMs);
+  if (txt !== lastClockText) { clockEl.textContent = txt; lastClockText = txt; }
+
+  const secs = remainingMs / 1000;
+  let color = "var(--primary)";
+  if (warningColors) {
+    if (secs <= 10) color = "var(--red)";
+    else if (secs <= 30) color = "var(--amber)";
+  }
+  if (color !== lastAccent) {
+    document.documentElement.style.setProperty("--accent", color);
+    lastAccent = color;
+  }
+
+  // Final 10s: the clock strobes if enabled (default), else falls back to the
+  // gentler pulse. Only one animation is applied at a time.
+  const inFinal10 = running && secs <= 10 && remainingMs > 0;
+  const strobing = inFinal10 && strobeEnabled;
+  const pulsing = inFinal10 && !strobeEnabled;
+  clockEl.classList.toggle("strobe", strobing);
+  clockEl.classList.toggle("pulse", pulsing);
+
+  const btnText = pendingStart
+    ? "Cancel"
+    : (running ? "Pause" : (remainingMs < totalMs && remainingMs > 0 ? "Resume" : "Start"));
+  const btnPaused = !pendingStart && !running && remainingMs < totalMs && remainingMs > 0;
+  if (btnText !== lastBtnText) { startBtn.textContent = btnText; lastBtnText = btnText; }
+  startBtn.classList.toggle("paused", btnPaused);
+}
+
+function setStatus(text) { statusEl.textContent = text; }
+
+/* ---- Cue checks ----
+   Arm-based, not crossing-based: a cue is armed only when time starts above its
+   threshold (see rearmCues/adjust), so firing whenever armed && remainingMs is at
+   or below the threshold is correct and fires exactly once. This is robust to the
+   rAF render loop updating remainingMs between heartbeat ticks. */
+function checkCues() {
+  for (const t of THRESHOLDS) {
+    if (armed[t.key] && remainingMs <= t.ms) {
+      armed[t.key] = false;
+      play(t.key);
+    }
+  }
+}
+
+/* ---- Timing ----
+   A single wall-clock heartbeat (setInterval, 100ms) drives everything: cues,
+   finish, and the display. The clock only shows whole seconds and the pulse/strobe
+   are pure CSS animations, so there's no need for a 60fps rAF loop. The heartbeat
+   keeps running in the background when the keep-alive clip is playing, so the alarm
+   fires even with the screen locked. */
+const TICK_MS = 100;
+function heartbeatTick() {
+  if (!running) return;
+  remainingMs = Math.max(0, endAt - performance.now());
+  checkCues();
+  if (remainingMs <= 0) { finish(); return; }
+  render();
+}
+
+function finish() {
+  running = false;
+  clearInterval(heartbeat);
+  remainingMs = 0;
+  render();
+  setStatus("Time!");
+  play("gameover");
+  releaseWake();
+  // Keep the page alive a few more seconds so the horn plays out fully even if
+  // the screen is locked, then drop the silent keep-alive.
+  setTimeout(stopKeepAlive, 12000);
+}
+
+/* ---- Controls ---- */
+function readInputsToTotal() {
+  const h = clampInt(hhEl.value, 0, 99);
+  const m = clampInt(mmEl.value, 0, 59);
+  const s = clampInt(ssEl.value, 0, 59);
+  totalMs = (h * 3600 + m * 60 + s) * 1000;
+  remainingMs = totalMs;
+  rearmCues();
+  render();
+}
+
+function clampInt(v, lo, hi) {
+  let n = parseInt(v, 10);
+  if (isNaN(n)) n = 0;
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function rearmCues() {
+  for (const t of THRESHOLDS) armed[t.key] = remainingMs > t.ms;
+}
+
+function start() {
+  unlockAudio();
+  if (running || pendingStart) return;
+
+  // If starting fresh (no time set yet), pull from inputs.
+  if (remainingMs <= 0) readInputsToTotal();
+  if (remainingMs <= 0) { setStatus("Set a time first"); return; }
+
+  const fresh = remainingMs === totalMs;
+
+  // "Wait for start sound": play the clip, begin counting only when it ends.
+  if (fresh && soundEnabled && waitForStart && loaded.start) {
+    pendingStart = true;
+    setStatus("Get ready…");
+    setPanel.open = false;
+    play("start");
+
+    pendingBeginFn = () => {
+      clearTimeout(startFallback);
+      if (!pendingStart) return;            // cancelled in the meantime
+      pendingStart = false;
+      pendingBeginFn = null;
+      beginRun();
+    };
+    audio.start.addEventListener("ended", pendingBeginFn, { once: true });
+
+    // Safety net in case "ended" never fires.
+    const durMs = (isFinite(audio.start.duration) && audio.start.duration > 0)
+      ? audio.start.duration * 1000 + 500 : 8000;
+    startFallback = setTimeout(pendingBeginFn, durMs);
+
+    render();
+    return;
+  }
+
+  if (fresh) play("start");   // immediate start (gated by soundEnabled inside play)
+  beginRun();
+}
+
+function beginRun() {
+  running = true;
+  endAt = performance.now() + remainingMs;
+  setStatus("Running");
+  setPanel.open = false;
+  requestWake();
+  startKeepAlive();
+  clearInterval(heartbeat);
+  heartbeat = setInterval(heartbeatTick, TICK_MS);
+  render();
+}
+
+function cancelPendingStart() {
+  if (!pendingStart) return;
+  pendingStart = false;
+  clearTimeout(startFallback);
+  if (pendingBeginFn) {
+    audio.start.removeEventListener("ended", pendingBeginFn);
+    pendingBeginFn = null;
+  }
+  try { audio.start.pause(); audio.start.currentTime = 0; } catch (e) {}
+}
+
+function pause() {
+  if (!running) return;
+  running = false;
+  clearInterval(heartbeat);
+  remainingMs = Math.max(0, endAt - performance.now());
+  setStatus("Paused");
+  stopKeepAlive();
+  releaseWake();
+  render();
+}
+
+function toggle() {
+  if (pendingStart) { cancelPendingStart(); setStatus("Ready"); render(); return; }
+  if (running) pause();
+  else start();
+}
+
+function reset() {
+  cancelPendingStart();
+  running = false;
+  clearInterval(heartbeat);
+  stopKeepAlive();
+  remainingMs = totalMs;
+  rearmCues();
+  setStatus("Ready");
+  render();
+}
+
+// Unlock/activate audio and play a cue WITHOUT starting the countdown.
+// Handy for confirming sound works before a game, or as an alternative to
+// pressing Start just to prime audio. Ignores the master mute (like Test).
+function testSound() {
+  unlockAudio();
+  const key = loaded.test
+    ? "test"
+    : (loaded.start ? "start" : (CUES.map((c) => c.key).find((k) => loaded[k]) || "test"));
+  play(key, true);
+}
+
+function adjust(deltaSec) {
+  remainingMs = Math.max(0, remainingMs + deltaSec * 1000);
+  if (running) endAt = performance.now() + remainingMs;
+
+  // Re-arm cues when time is pushed back above the thresholds.
+  for (const t of THRESHOLDS) if (remainingMs > t.ms) armed[t.key] = true;
+
+  // If running and we just dropped to/under a threshold, fire the cue now.
+  if (running) checkCues();
+
+  if (!running && remainingMs === 0) setStatus("Ready");
+  render();
+}
+
+/* ---- Wake Lock ---- */
+let wakeLock = null;
+async function requestWake() {
+  try {
+    if ("wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => {});
+    }
+  } catch (e) { /* ignore */ }
+}
+function releaseWake() {
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && running) {
+    requestWake();
+    // Reconcile the display immediately on return; the heartbeat kept cues/finish
+    // firing in the background (throttled if the keep-alive clip wasn't running).
+    heartbeatTick();
+  }
+});
+
+/* ---- Wire up ---- */
+startBtn.addEventListener("click", toggle);
+resetBtn.addEventListener("click", reset);
+testSoundBtn.addEventListener("click", testSound);
+
+// Accordion with a short slide/fade so opening & closing isn't jarring.
+// Opening one panel first collapses the other, so options never get
+// squeezed off-screen or overlap the controls when both are expanded.
+const PANELS = [setPanel, soundPanel, appearancePanel];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let panelBusy = false;
+
+function collapsePanel(details) {
+  return new Promise((resolve) => {
+    if (!details.open) return resolve();
+    const body = details.querySelector(".panel-body");
+    if (reduceMotion) { details.open = false; return resolve(); }
+    const startH = body.offsetHeight;
+    body.style.overflow = "hidden";
+    const anim = body.animate(
+      [{ height: startH + "px", opacity: 1 }, { height: "0px", opacity: 0 }],
+      { duration: 170, easing: "ease" }
+    );
+    anim.onfinish = () => {
+      details.open = false;
+      body.style.overflow = "";
+      resolve();
+    };
+  });
+}
+
+function expandPanel(details) {
+  return new Promise((resolve) => {
+    details.open = true;
+    const body = details.querySelector(".panel-body");
+    if (reduceMotion) return resolve();
+    const targetH = body.offsetHeight;
+    body.style.overflow = "hidden";
+    const anim = body.animate(
+      [{ height: "0px", opacity: 0 }, { height: targetH + "px", opacity: 1 }],
+      { duration: 200, easing: "ease" }
+    );
+    anim.onfinish = () => {
+      body.style.overflow = "";
+      resolve();
+    };
+  });
+}
+
+PANELS.forEach((d) => {
+  d.querySelector("summary").addEventListener("click", async (e) => {
+    e.preventDefault();               // we drive open/close ourselves so it can animate
+    if (panelBusy) return;
+    panelBusy = true;
+    if (d.open) {
+      await collapsePanel(d);
+    } else {
+      for (const other of PANELS) if (other !== d) await collapsePanel(other);
+      await expandPanel(d);
+    }
+    panelBusy = false;
+  });
+});
+
+document.getElementById("adjustRow").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-adj]");
+  if (b) adjust(parseInt(b.dataset.adj, 10));
+});
+
+document.querySelectorAll(".preset").forEach((b) => {
+  b.addEventListener("click", () => {
+    const min = parseInt(b.dataset.min, 10);
+    hhEl.value = 0; mmEl.value = min; ssEl.value = 0;
+    readInputsToTotal();
+    setStatus("Ready");
+  });
+});
+
+[hhEl, mmEl, ssEl].forEach((el) => {
+  el.addEventListener("change", () => { if (!running) readInputsToTotal(); });
+});
+
+soundToggleEl.addEventListener("change", () => {
+  soundEnabled = soundToggleEl.checked;
+  soundList.classList.toggle("muted", !soundEnabled);
+  if (soundEnabled) unlockAudio();
+  savePrefs();
+});
+
+waitForStartEl.addEventListener("change", () => {
+  waitForStart = waitForStartEl.checked;
+  savePrefs();
+});
+
+bgAlarmEl.addEventListener("change", () => {
+  bgAlarm = bgAlarmEl.checked;
+  if (bgAlarm) { unlockAudio(); if (running) startKeepAlive(); }
+  else stopKeepAlive();
+  savePrefs();
+});
+
+/* ---- Appearance ---- */
+function applyTheme() {
+  if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+  else document.documentElement.removeAttribute("data-theme");
+}
+// Pick black or white text for good contrast on a given hex colour.
+function contrastText(hex) {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substr(0, 2), 16);
+  const g = parseInt(c.substr(2, 2), 16);
+  const b = parseInt(c.substr(4, 2), 16);
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;   // perceived brightness 0-255
+  return lum > 150 ? "#06221f" : "#ffffff";
+}
+function updateSwatches() {
+  for (const k in swatchEls) swatchEls[k].style.background = colors[k];
+}
+function applyColors() {
+  const s = document.documentElement.style;
+  s.setProperty("--primary", colors.primary);
+  s.setProperty("--primary-text", contrastText(colors.primary));
+  s.setProperty("--plus", colors.plus);
+  s.setProperty("--minus", colors.minus);
+  updateSwatches();
+  render();  // refresh the live clock colour
+}
+
+lightToggleEl.addEventListener("change", () => {
+  theme = lightToggleEl.checked ? "light" : "dark";
+  applyTheme();
+  savePrefs();
+});
+warnToggleEl.addEventListener("change", () => {
+  warningColors = warnToggleEl.checked;
+  render();
+  savePrefs();
+});
+strobeToggleEl.addEventListener("change", () => {
+  strobeEnabled = strobeToggleEl.checked;
+  render();
+  savePrefs();
+});
+for (const key of Object.keys(swatchEls)) {
+  swatchEls[key].addEventListener("click", () => openColorPicker(key));
+}
+resetColorsBtn.addEventListener("click", () => {
+  Object.assign(colors, DEFAULT_COLORS);
+  applyColors();
+  savePrefs();
+});
+
+/* ===========================================================================
+   Colour picker — WinUI-style hue ring with a saturation/value square.
+   Opens in a popover, edits the chosen swatch live.
+   =========================================================================== */
+const CP_SIZE = 240, CP_C = 120;        // canvas size / centre
+const CP_R = 112, CP_RIN = 86;          // ring outer / inner radius
+const CP_SQ = 120, CP_X0 = 60, CP_Y0 = 60;  // SV square side / top-left
+const CP_HR = (CP_R + CP_RIN) / 2;      // hue-handle radius
+
+function clampf(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+
+function hsv2rgb(h, s, v) {
+  h = (h % 360) / 60; const i = Math.floor(h), f = h - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  let r, g, b;
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    default: r = v; g = p; b = q;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = h * 60; if (h < 0) h += 360;
+  }
+  return [h, max ? d / max : 0, max];
+}
+function hex2rgb(hex) {
+  const c = hex.replace("#", "");
+  return [parseInt(c.substr(0, 2), 16), parseInt(c.substr(2, 2), 16), parseInt(c.substr(4, 2), 16)];
+}
+function rgb2hex(r, g, b) {
+  return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+let cpEls = null;   // built lazily
+let cpState = null; // { key, hue, sat, val }
+
+function cpCurrentHex() {
+  return rgb2hex(...hsv2rgb(cpState.hue, cpState.sat, cpState.val));
+}
+
+function cpEmit(updateHexField) {
+  const hx = cpCurrentHex();
+  cpEls.preview.style.background = hx;
+  if (updateHexField) cpEls.hex.value = hx.toUpperCase();
+  colors[cpState.key] = hx;
+  applyColors();
+  savePrefs();
+}
+
+function cpDrawHandle(x, y) {
+  const ctx = cpEls.ctx;
+  ctx.beginPath();
+  ctx.arc(x, y, 8, 0, 2 * Math.PI);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.stroke();
+}
+
+// The hue ring never changes, so render it once to an offscreen canvas and blit
+// it each frame instead of re-filling 360 arcs on every pointer-move.
+let cpRing = null;
+function cpBuildRing() {
+  cpRing = document.createElement("canvas");
+  cpRing.width = CP_SIZE;
+  cpRing.height = CP_SIZE;
+  const rctx = cpRing.getContext("2d");
+  for (let a = 0; a < 360; a++) {
+    const s = (a - 1) * Math.PI / 180, e = (a + 1) * Math.PI / 180;
+    rctx.beginPath();
+    rctx.arc(CP_C, CP_C, CP_R, s, e);
+    rctx.arc(CP_C, CP_C, CP_RIN, e, s, true);
+    rctx.closePath();
+    rctx.fillStyle = `hsl(${a},100%,50%)`;
+    rctx.fill();
+  }
+}
+
+function cpRender() {
+  const ctx = cpEls.ctx;
+  ctx.clearRect(0, 0, CP_SIZE, CP_SIZE);
+
+  // Hue ring (static — built once, cached, then blitted)
+  if (!cpRing) cpBuildRing();
+  ctx.drawImage(cpRing, 0, 0);
+
+  // Saturation / value square for the current hue
+  ctx.fillStyle = rgb2hex(...hsv2rgb(cpState.hue, 1, 1));
+  ctx.fillRect(CP_X0, CP_Y0, CP_SQ, CP_SQ);
+  let gx = ctx.createLinearGradient(CP_X0, 0, CP_X0 + CP_SQ, 0);
+  gx.addColorStop(0, "#fff"); gx.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gx; ctx.fillRect(CP_X0, CP_Y0, CP_SQ, CP_SQ);
+  let gy = ctx.createLinearGradient(0, CP_Y0, 0, CP_Y0 + CP_SQ);
+  gy.addColorStop(0, "rgba(0,0,0,0)"); gy.addColorStop(1, "#000");
+  ctx.fillStyle = gy; ctx.fillRect(CP_X0, CP_Y0, CP_SQ, CP_SQ);
+
+  // Handles
+  const ha = cpState.hue * Math.PI / 180;
+  cpDrawHandle(CP_C + CP_HR * Math.cos(ha), CP_C + CP_HR * Math.sin(ha));
+  cpDrawHandle(CP_X0 + cpState.sat * CP_SQ, CP_Y0 + (1 - cpState.val) * CP_SQ);
+}
+
+function ensureColorPicker() {
+  if (cpEls) return;
+  const backdrop = document.createElement("div");
+  backdrop.className = "cp-backdrop";
+  backdrop.hidden = true;
+
+  const card = document.createElement("div");
+  card.className = "cp-card";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = CP_SIZE; canvas.height = CP_SIZE;
+  canvas.className = "cp-canvas";
+
+  const row = document.createElement("div");
+  row.className = "cp-row";
+  const preview = document.createElement("div");
+  preview.className = "cp-preview";
+  const hex = document.createElement("input");
+  hex.className = "cp-hex";
+  hex.type = "text";
+  hex.maxLength = 7;
+  hex.spellcheck = false;
+  row.append(preview, hex);
+
+  const actions = document.createElement("div");
+  actions.className = "cp-actions";
+  const done = document.createElement("button");
+  done.className = "btn-primary";
+  done.style.flex = "1";
+  done.textContent = "Done";
+  actions.append(done);
+
+  card.append(canvas, row, actions);
+  backdrop.append(card);
+  document.body.append(backdrop);
+
+  const ctx = canvas.getContext("2d");
+  cpEls = { backdrop, card, canvas, ctx, preview, hex, done };
+
+  let mode = null;
+  function locate(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+  function handle(e) {
+    const { x, y } = locate(e);
+    const dx = x - CP_C, dy = y - CP_C, dist = Math.hypot(dx, dy);
+    if (mode === null) mode = (dist >= CP_RIN - 1 && dist <= CP_R + 10) ? "hue" : "sv";
+    if (mode === "hue") {
+      let a = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (a < 0) a += 360;
+      cpState.hue = a;
+    } else {
+      cpState.sat = clampf((x - CP_X0) / CP_SQ, 0, 1);
+      cpState.val = clampf(1 - (y - CP_Y0) / CP_SQ, 0, 1);
+    }
+    cpRender();
+    cpEmit(true);
+  }
+  canvas.addEventListener("pointerdown", (e) => {
+    mode = null;
+    canvas.setPointerCapture(e.pointerId);
+    handle(e);
+  });
+  canvas.addEventListener("pointermove", (e) => { if (e.buttons) handle(e); });
+  canvas.addEventListener("pointerup", () => { mode = null; });
+
+  hex.addEventListener("input", () => {
+    const v = hex.value.trim();
+    if (/^#?[0-9a-fA-F]{6}$/.test(v)) {
+      const [r, g, b] = hex2rgb(v[0] === "#" ? v : "#" + v);
+      [cpState.hue, cpState.sat, cpState.val] = rgb2hsv(r, g, b);
+      cpRender();
+      cpEmit(false);
+    }
+  });
+
+  done.addEventListener("click", closeColorPicker);
+  backdrop.addEventListener("pointerdown", (e) => { if (e.target === backdrop) closeColorPicker(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !backdrop.hidden) closeColorPicker();
+  });
+}
+
+function openColorPicker(key) {
+  ensureColorPicker();
+  const [r, g, b] = hex2rgb(colors[key]);
+  const [h, s, v] = rgb2hsv(r, g, b);
+  cpState = { key, hue: h, sat: s, val: v };
+  cpEls.hex.value = colors[key].toUpperCase();
+  cpEls.preview.style.background = colors[key];
+  cpEls.backdrop.hidden = false;
+  cpRender();
+}
+
+function closeColorPicker() {
+  if (cpEls) cpEls.backdrop.hidden = true;
+  cpState = null;
+}
+
+/* ---- Preferences (persist the two toggles) ---- */
+function savePrefs() {
+  try {
+    localStorage.setItem("gc_sound", soundEnabled ? "1" : "0");
+    localStorage.setItem("gc_wait", waitForStart ? "1" : "0");
+    localStorage.setItem("gc_bgalarm", bgAlarm ? "1" : "0");
+    localStorage.setItem("gc_theme", theme);
+    localStorage.setItem("gc_warn", warningColors ? "1" : "0");
+    localStorage.setItem("gc_strobe", strobeEnabled ? "1" : "0");
+    localStorage.setItem("gc_colors", JSON.stringify(colors));
+  } catch (e) { /* ignore */ }
+}
+function loadPrefs() {
+  try {
+    const s = localStorage.getItem("gc_sound");
+    const w = localStorage.getItem("gc_wait");
+    const ba = localStorage.getItem("gc_bgalarm");
+    if (s !== null) soundEnabled = s === "1";
+    if (w !== null) waitForStart = w === "1";
+    if (ba !== null) bgAlarm = ba === "1";
+
+    const th = localStorage.getItem("gc_theme");
+    const wc = localStorage.getItem("gc_warn");
+    const st = localStorage.getItem("gc_strobe");
+    const co = localStorage.getItem("gc_colors");
+    if (th !== null) theme = th;
+    if (wc !== null) warningColors = wc === "1";
+    if (st !== null) strobeEnabled = st === "1";
+    if (co !== null) { try { Object.assign(colors, JSON.parse(co)); } catch (e) {} }
+  } catch (e) { /* ignore */ }
+  soundToggleEl.checked = soundEnabled;
+  waitForStartEl.checked = waitForStart;
+  bgAlarmEl.checked = bgAlarm;
+  soundList.classList.toggle("muted", !soundEnabled);
+
+  lightToggleEl.checked  = theme === "light";
+  warnToggleEl.checked   = warningColors;
+  strobeToggleEl.checked = strobeEnabled;
+  // swatch colours are painted by applyColors() during init
+}
+
+document.addEventListener("keydown", (e) => {
+  const typing = ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
+  if (e.code === "Space") {
+    if (typing) return;
+    e.preventDefault();
+    toggle();
+  } else if (e.key === "r" || e.key === "R") {
+    if (typing) return;
+    reset();
+  }
+});
+
+/* ---- Init ---- */
+applyAudioSession();
+buildSoundUI();
+loadPrefs();
+applyTheme();
+applyColors();
+readInputsToTotal();
+setStatus("Ready");
+render();
+</script>
+</body>
+</html>

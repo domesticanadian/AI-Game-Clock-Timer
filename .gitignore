@@ -1,0 +1,24 @@
+# Secrets / local config — never commit
+.env
+*.env
+!.env.example
+
+# Tailscale state (node identity, keys)
+ts/
+config/
+tailscaled.state
+
+# Your own audio clips (bring your own; keep the folder's README)
+sounds/*
+!sounds/README.txt
+
+# Backups & local editor scratch
+backups/
+*.bak
+*.bak_*
+*.tar.gz
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
