@@ -98,10 +98,10 @@
   }
 
   /* ---- Final-10s strobe (the clock flashes) ---- */
-  #clock.strobe { animation: clockStrobe 0.22s steps(1, end) infinite; }
+  #clock.strobe { animation: clockStrobe 2s ease-in-out infinite; }
   @keyframes clockStrobe {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.1; }
+    50% { opacity: 0.25; }
   }
 
   .clock-sub {
