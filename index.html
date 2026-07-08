@@ -115,11 +115,24 @@
   }
 
   /* ---- Controls ---- */
-  /* .layout / .panes are transparent in portrait (display:contents) so the
-     clock, controls, and panels lay out exactly as direct children of <body>.
-     The landscape media query near the bottom turns them into a two-column
-     split (clock left, scrollable controls right). */
-  .layout, .panes { display: contents; }
+  /* .layout / .stage are transparent in portrait (display:contents) so the
+     clock, controls, and settings lay out exactly as direct children of
+     <body>. The landscape media query near the bottom turns them into a
+     two-column split: clock + controls on the left, settings tabs on the right. */
+  .layout, .stage { display: contents; }
+
+  /* ---- Settings (tabbed panel: Set the clock / Sound / Appearance) ---- */
+  .settings {
+    width: 100%;
+    max-width: 720px;
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .settings-tabs { margin-bottom: 0; }
+  .settings-body { padding: 12px 16px 16px; }
 
   .controls {
     width: 100%;
@@ -439,27 +452,41 @@
       align-items: stretch;
       gap: 20px;
       width: 100%;
-      max-width: 1100px;
+      max-width: 1150px;
       flex: 1;
       min-height: 0;
     }
-    .clock-wrap { flex: 1 1 44%; padding: 0; min-width: 0; }
-    #clock { font-size: clamp(44px, 13vw, 170px); }
-    .clock-sub { margin-top: 4px; }
-
-    .panes {
+    /* Left column: clock with its controls directly underneath. */
+    .stage {
       display: flex;
       flex-direction: column;
-      flex: 1 1 56%;
-      gap: 12px;
+      justify-content: center;
+      gap: 14px;
+      flex: 1 1 42%;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .clock-wrap { flex: 0 0 auto; padding: 0; }
+    #clock { font-size: clamp(40px, 12vw, 140px); }
+    .clock-sub { margin-top: 4px; }
+    .controls { max-width: none; }
+
+    /* Right column: the settings tabs, with only the pane body scrolling. */
+    .settings {
+      flex: 1 1 58%;
+      min-height: 0;
+      margin-top: 0;
+      max-width: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .settings-body {
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
-      padding: 2px 6px 8px 0;
     }
-    .controls { max-width: none; }
-    details { max-width: none; margin-top: 0; }
   }
 </style>
 </head>
@@ -467,6 +494,7 @@
   <h1>Game Clock</h1>
 
   <div class="layout">
+  <div class="stage">
   <div class="clock-wrap">
     <div>
       <div id="clock">00:00</div>
@@ -474,7 +502,6 @@
     </div>
   </div>
 
-  <div class="panes">
   <div class="controls">
     <div class="row">
       <button id="startBtn" class="btn-primary">Start</button>
@@ -489,10 +516,17 @@
       <button class="adj adj-plus" data-adj="60">+1:00</button>
     </div>
   </div>
+  </div>
 
-  <details id="setPanel" open>
-    <summary>Set the clock</summary>
-    <div class="panel-body">
+  <div class="settings" id="settings">
+    <div class="tabs settings-tabs" role="tablist">
+      <button type="button" class="tab-btn active" id="paneSetBtn" role="tab" aria-selected="true" aria-controls="paneSet" data-tab="paneSet">Set the clock</button>
+      <button type="button" class="tab-btn" id="paneSoundBtn" role="tab" aria-selected="false" aria-controls="paneSound" data-tab="paneSound">Sound</button>
+      <button type="button" class="tab-btn" id="paneAppearanceBtn" role="tab" aria-selected="false" aria-controls="paneAppearance" data-tab="paneAppearance">Appearance</button>
+    </div>
+    <div class="settings-body">
+
+    <div class="tab-pane" id="paneSet" role="tabpanel" aria-labelledby="paneSetBtn">
       <div class="setter">
         <div class="field">
           <label for="hh">Hours</label>
@@ -517,11 +551,8 @@
         <button class="preset" data-min="45">45 min</button>
       </div>
     </div>
-  </details>
 
-  <details id="soundPanel">
-    <summary>Sound &amp; start options</summary>
-    <div class="panel-body">
+    <div class="tab-pane" id="paneSound" role="tabpanel" aria-labelledby="paneSoundBtn" hidden>
       <div class="tabs" role="tablist">
         <button type="button" class="tab-btn active" id="tabSettingsBtn" role="tab" aria-selected="true" aria-controls="tabSettings" data-tab="tabSettings">Settings</button>
         <button type="button" class="tab-btn" id="tabFilesBtn" role="tab" aria-selected="false" aria-controls="tabFiles" data-tab="tabFiles">Sound files</button>
@@ -544,11 +575,8 @@
         <div id="soundList"></div>
       </div>
     </div>
-  </details>
 
-  <details id="appearancePanel">
-    <summary>Appearance</summary>
-    <div class="panel-body">
+    <div class="tab-pane" id="paneAppearance" role="tabpanel" aria-labelledby="paneAppearanceBtn" hidden>
       <div class="opt-row">
         <span class="opt-label">Light mode<small>Switch between dark and light theme</small></span>
         <label class="switch"><input type="checkbox" id="lightToggle"><span class="slider"></span></label>
@@ -577,7 +605,8 @@
         <button id="resetColors" class="btn-ghost">Reset colours</button>
       </div>
     </div>
-  </details>
+
+    </div>
   </div>
   </div>
 
@@ -631,12 +660,9 @@ const hhEl      = document.getElementById("hh");
 const mmEl      = document.getElementById("mm");
 const ssEl      = document.getElementById("ss");
 const soundList = document.getElementById("soundList");
-const setPanel  = document.getElementById("setPanel");
-const soundPanel = document.getElementById("soundPanel");
 const soundToggleEl = document.getElementById("soundToggle");
 const waitForStartEl = document.getElementById("waitForStart");
 const bgAlarmEl = document.getElementById("bgAlarm");
-const appearancePanel = document.getElementById("appearancePanel");
 const lightToggleEl   = document.getElementById("lightToggle");
 const warnToggleEl    = document.getElementById("warnToggle");
 const strobeToggleEl  = document.getElementById("strobeToggle");
@@ -949,7 +975,6 @@ function start() {
   if (fresh && soundEnabled && waitForStart && loaded.start) {
     pendingStart = true;
     setStatus("Get ready…");
-    setPanel.open = false;
     play("start");
 
     pendingBeginFn = () => {
@@ -978,7 +1003,6 @@ function beginRun() {
   running = true;
   endAt = performance.now() + remainingMs;
   setStatus("Running");
-  setPanel.open = false;
   requestWake();
   startKeepAlive();
   clearInterval(heartbeat);
@@ -1077,62 +1101,22 @@ startBtn.addEventListener("click", toggle);
 resetBtn.addEventListener("click", reset);
 testSoundBtn.addEventListener("click", testSound);
 
-// Accordion with a short slide/fade so opening & closing isn't jarring.
-// Opening one panel first collapses the other, so options never get
-// squeezed off-screen or overlap the controls when both are expanded.
-const PANELS = [setPanel, soundPanel, appearancePanel];
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-let panelBusy = false;
-
-function collapsePanel(details) {
-  return new Promise((resolve) => {
-    if (!details.open) return resolve();
-    const body = details.querySelector(".panel-body");
-    if (reduceMotion) { details.open = false; return resolve(); }
-    const startH = body.offsetHeight;
-    body.style.overflow = "hidden";
-    const anim = body.animate(
-      [{ height: startH + "px", opacity: 1 }, { height: "0px", opacity: 0 }],
-      { duration: 170, easing: "ease" }
-    );
-    anim.onfinish = () => {
-      details.open = false;
-      body.style.overflow = "";
-      resolve();
-    };
-  });
-}
-
-function expandPanel(details) {
-  return new Promise((resolve) => {
-    details.open = true;
-    const body = details.querySelector(".panel-body");
-    if (reduceMotion) return resolve();
-    const targetH = body.offsetHeight;
-    body.style.overflow = "hidden";
-    const anim = body.animate(
-      [{ height: "0px", opacity: 0 }, { height: targetH + "px", opacity: 1 }],
-      { duration: 200, easing: "ease" }
-    );
-    anim.onfinish = () => {
-      body.style.overflow = "";
-      resolve();
-    };
-  });
-}
-
-PANELS.forEach((d) => {
-  d.querySelector("summary").addEventListener("click", async (e) => {
-    e.preventDefault();               // we drive open/close ourselves so it can animate
-    if (panelBusy) return;
-    panelBusy = true;
-    if (d.open) {
-      await collapsePanel(d);
-    } else {
-      for (const other of PANELS) if (other !== d) await collapsePanel(other);
-      await expandPanel(d);
-    }
-    panelBusy = false;
+// Tabs. Works for any [role="tablist"]: clicking a tab activates it and shows
+// its pane (from data-tab) while hiding the tablist's other panes. Only the
+// tablist's *direct* .tab-btn children are wired, so nested tablists (the
+// Sound tab's Settings / Sound files sub-tabs) stay independent.
+document.querySelectorAll('[role="tablist"]').forEach((list) => {
+  const btns = list.querySelectorAll(":scope > .tab-btn");
+  btns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btns.forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+        const pane = document.getElementById(b.dataset.tab);
+        if (pane) pane.hidden = !on;
+      });
+    });
   });
 });
 
@@ -1494,21 +1478,6 @@ document.addEventListener("keydown", (e) => {
     reset();
   }
 });
-
-/* ---- Sound-panel tabs ---- */
-(function initSoundTabs() {
-  const tabBtns = document.querySelectorAll("#soundPanel .tab-btn");
-  tabBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      tabBtns.forEach((b) => {
-        const on = b === btn;
-        b.classList.toggle("active", on);
-        b.setAttribute("aria-selected", on ? "true" : "false");
-        document.getElementById(b.dataset.tab).hidden = !on;
-      });
-    });
-  });
-})();
 
 /* ---- Init ---- */
 applyAudioSession();
