@@ -259,12 +259,10 @@
   #soundList.muted .test-btn,
   #soundList.muted .file-btn { opacity: 1; }
   #soundList {
-    max-height: 260px;
-    overflow-y: scroll;
+    max-height: min(260px, 45vh);
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    border-top: 1px solid var(--line);
-    margin-top: 4px;
   }
   #soundList::-webkit-scrollbar { width: 10px; }
   #soundList::-webkit-scrollbar-track { background: transparent; }
@@ -273,6 +271,31 @@
     border-radius: 999px;
     border: 2px solid var(--panel);
   }
+
+  /* ---- Tabs (Sound panel) ---- */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 10px 8px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--primary); }
+  .tab-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .tab-pane[hidden] { display: none; }
 
   /* ---- Option rows (toggle switches) ---- */
   .opt-row {
@@ -453,19 +476,27 @@
   <details id="soundPanel">
     <summary>Sound &amp; start options</summary>
     <div class="panel-body">
-      <div class="opt-row">
-        <span class="opt-label">Sound cues<small>Master on/off for all cues</small></span>
-        <label class="switch"><input type="checkbox" id="soundToggle" checked><span class="slider"></span></label>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab-btn active" id="tabSettingsBtn" role="tab" aria-selected="true" aria-controls="tabSettings" data-tab="tabSettings">Settings</button>
+        <button type="button" class="tab-btn" id="tabFilesBtn" role="tab" aria-selected="false" aria-controls="tabFiles" data-tab="tabFiles">Sound files</button>
       </div>
-      <div class="opt-row">
-        <span class="opt-label">Wait for start sound<small>Begin the countdown only after the start clip finishes</small></span>
-        <label class="switch"><input type="checkbox" id="waitForStart" checked><span class="slider"></span></label>
+      <div class="tab-pane" id="tabSettings" role="tabpanel" aria-labelledby="tabSettingsBtn">
+        <div class="opt-row">
+          <span class="opt-label">Sound cues<small>Master on/off for all cues</small></span>
+          <label class="switch"><input type="checkbox" id="soundToggle" checked><span class="slider"></span></label>
+        </div>
+        <div class="opt-row">
+          <span class="opt-label">Wait for start sound<small>Begin the countdown only after the start clip finishes</small></span>
+          <label class="switch"><input type="checkbox" id="waitForStart" checked><span class="slider"></span></label>
+        </div>
+        <div class="opt-row">
+          <span class="opt-label">Background alarm<small>Keep the countdown &amp; sounds firing when the screen is locked or you switch apps (may pause other music)</small></span>
+          <label class="switch"><input type="checkbox" id="bgAlarm" checked><span class="slider"></span></label>
+        </div>
       </div>
-      <div class="opt-row">
-        <span class="opt-label">Background alarm<small>Keep the countdown &amp; sounds firing when the screen is locked or you switch apps (may pause other music)</small></span>
-        <label class="switch"><input type="checkbox" id="bgAlarm" checked><span class="slider"></span></label>
+      <div class="tab-pane" id="tabFiles" role="tabpanel" aria-labelledby="tabFilesBtn" hidden>
+        <div id="soundList"></div>
       </div>
-      <div id="soundList"></div>
     </div>
   </details>
 
@@ -1415,6 +1446,21 @@ document.addEventListener("keydown", (e) => {
     reset();
   }
 });
+
+/* ---- Sound-panel tabs ---- */
+(function initSoundTabs() {
+  const tabBtns = document.querySelectorAll("#soundPanel .tab-btn");
+  tabBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabBtns.forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+        document.getElementById(b.dataset.tab).hidden = !on;
+      });
+    });
+  });
+})();
 
 /* ---- Init ---- */
 applyAudioSession();
