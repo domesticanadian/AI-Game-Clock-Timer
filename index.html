@@ -342,6 +342,51 @@
   .switch input:checked + .slider::before { transform: translateX(20px); }
   .switch input:focus-visible + .slider { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+  /* ---- UI-size slider (Appearance) ---- */
+  .slider-row {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .slider-row .opt-label { display: block; margin-bottom: 10px; }
+  .slider-ctl { display: flex; align-items: center; gap: 12px; }
+  input[type="range"].ui-range {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    margin: 8px 0;
+  }
+  input[type="range"].ui-range:disabled { opacity: 0.4; cursor: not-allowed; }
+  input[type="range"].ui-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: none;
+    cursor: pointer;
+  }
+  input[type="range"].ui-range::-moz-range-thumb {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: none;
+    cursor: pointer;
+  }
+  input[type="range"].ui-range:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+  .slider-val {
+    min-width: 52px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text);
+  }
+
   /* Light mode: darken the coloured +/- button text so it reads on the light panel */
   :root[data-theme="light"] .adj-plus  { color: color-mix(in srgb, var(--plus)  60%, #000); }
   :root[data-theme="light"] .adj-minus { color: color-mix(in srgb, var(--minus) 60%, #000); }
@@ -578,6 +623,17 @@
 
     <div class="tab-pane" id="paneAppearance" role="tabpanel" aria-labelledby="paneAppearanceBtn" hidden>
       <div class="opt-row">
+        <span class="opt-label">Auto-fit to screen<small>Scale the whole UI to match your device's size</small></span>
+        <label class="switch"><input type="checkbox" id="autoScaleToggle" checked><span class="slider"></span></label>
+      </div>
+      <div class="slider-row">
+        <span class="opt-label">UI size<small>Manual scale — used when auto-fit is off</small></span>
+        <div class="slider-ctl">
+          <input type="range" class="ui-range" id="uiScaleSlider" min="50" max="200" step="5" value="100" aria-label="UI size" />
+          <span class="slider-val" id="uiScaleVal">100%</span>
+        </div>
+      </div>
+      <div class="opt-row">
         <span class="opt-label">Light mode<small>Switch between dark and light theme</small></span>
         <label class="switch"><input type="checkbox" id="lightToggle"><span class="slider"></span></label>
       </div>
@@ -666,6 +722,9 @@ const bgAlarmEl = document.getElementById("bgAlarm");
 const lightToggleEl   = document.getElementById("lightToggle");
 const warnToggleEl    = document.getElementById("warnToggle");
 const strobeToggleEl  = document.getElementById("strobeToggle");
+const autoScaleToggleEl = document.getElementById("autoScaleToggle");
+const uiScaleSliderEl = document.getElementById("uiScaleSlider");
+const uiScaleValEl    = document.getElementById("uiScaleVal");
 const resetColorsBtn  = document.getElementById("resetColors");
 const swatchEls = {
   primary: document.querySelector('.swatch[data-color="primary"]'),
@@ -687,6 +746,8 @@ let bgAlarm       = true;          // keep countdown/sounds alive while screen i
 let theme         = "dark";        // "dark" | "light"
 let warningColors = true;          // clock goes amber/red near the end
 let strobeEnabled = true;          // flash the clock in the final 10s (default on)
+let autoScale     = true;          // auto-fit the UI to the device size (default on)
+let uiScale       = 1.0;           // manual UI scale (1 = 100%), used when autoScale is off
 const DEFAULT_COLORS = { primary: "#38e1d6", plus: "#3ddc84", minus: "#ffb020" };
 const colors = { ...DEFAULT_COLORS };
 let pendingStart  = false;         // start clip playing, waiting to begin
@@ -1184,6 +1245,25 @@ function applyColors() {
   render();  // refresh the live clock colour
 }
 
+/* ---- UI scaling ----
+   We resize the whole UI with CSS `zoom` on <body>: unlike transform:scale it
+   reflows the layout, so a scaled-up UI still fills the width with no overflow
+   and media queries (portrait/landscape) still evaluate against the real
+   viewport. Auto-fit derives a factor from the device size; the manual slider
+   takes over when auto-fit is off. */
+function computeAutoScale() {
+  // "Fit to screen": shrink so the UI fits comfortably on small, short, or
+  // landscape screens, but never enlarge past the natural design size (the clock
+  // is already sized in vw, so zooming past 1.0 would clip it). Baseline is a
+  // roomy phone (~390×820 CSS px); anything smaller/shorter scales down, floored
+  // so it never gets unusably tiny. Want it bigger? Turn auto-fit off and use the
+  // slider.
+  const s = Math.min(window.innerWidth / 390, window.innerHeight / 820);
+  return Math.round(Math.min(1.0, Math.max(0.65, s)) * 100) / 100;
+}
+function effectiveScale() { return autoScale ? computeAutoScale() : uiScale; }
+function applyUiScale() { document.body.style.zoom = String(effectiveScale()); }
+
 lightToggleEl.addEventListener("change", () => {
   theme = lightToggleEl.checked ? "light" : "dark";
   applyTheme();
@@ -1199,6 +1279,20 @@ strobeToggleEl.addEventListener("change", () => {
   render();
   savePrefs();
 });
+autoScaleToggleEl.addEventListener("change", () => {
+  autoScale = autoScaleToggleEl.checked;
+  uiScaleSliderEl.disabled = autoScale;
+  applyUiScale();
+  savePrefs();
+});
+uiScaleSliderEl.addEventListener("input", () => {
+  uiScale = parseInt(uiScaleSliderEl.value, 10) / 100;
+  uiScaleValEl.textContent = Math.round(uiScale * 100) + "%";
+  if (!autoScale) applyUiScale();
+  savePrefs();
+});
+// Re-fit when the viewport changes (rotation, window resize) — only in auto mode.
+window.addEventListener("resize", () => { if (autoScale) applyUiScale(); });
 for (const key of Object.keys(swatchEls)) {
   swatchEls[key].addEventListener("click", () => openColorPicker(key));
 }
@@ -1435,6 +1529,8 @@ function savePrefs() {
     localStorage.setItem("gc_theme", theme);
     localStorage.setItem("gc_warn", warningColors ? "1" : "0");
     localStorage.setItem("gc_strobe", strobeEnabled ? "1" : "0");
+    localStorage.setItem("gc_autoscale", autoScale ? "1" : "0");
+    localStorage.setItem("gc_uiscale", String(uiScale));
     localStorage.setItem("gc_colors", JSON.stringify(colors));
   } catch (e) { /* ignore */ }
 }
@@ -1450,10 +1546,14 @@ function loadPrefs() {
     const th = localStorage.getItem("gc_theme");
     const wc = localStorage.getItem("gc_warn");
     const st = localStorage.getItem("gc_strobe");
+    const as = localStorage.getItem("gc_autoscale");
+    const us = localStorage.getItem("gc_uiscale");
     const co = localStorage.getItem("gc_colors");
     if (th !== null) theme = th;
     if (wc !== null) warningColors = wc === "1";
     if (st !== null) strobeEnabled = st === "1";
+    if (as !== null) autoScale = as === "1";
+    if (us !== null) { const n = parseFloat(us); if (isFinite(n)) uiScale = Math.min(2, Math.max(0.5, n)); }
     if (co !== null) { try { Object.assign(colors, JSON.parse(co)); } catch (e) {} }
   } catch (e) { /* ignore */ }
   soundToggleEl.checked = soundEnabled;
@@ -1464,6 +1564,10 @@ function loadPrefs() {
   lightToggleEl.checked  = theme === "light";
   warnToggleEl.checked   = warningColors;
   strobeToggleEl.checked = strobeEnabled;
+  autoScaleToggleEl.checked = autoScale;
+  uiScaleSliderEl.disabled  = autoScale;
+  uiScaleSliderEl.value      = String(Math.round(uiScale * 100));
+  uiScaleValEl.textContent   = Math.round(uiScale * 100) + "%";
   // swatch colours are painted by applyColors() during init
 }
 
@@ -1485,6 +1589,7 @@ buildSoundUI();
 loadPrefs();
 applyTheme();
 applyColors();
+applyUiScale();
 readInputsToTotal();
 setStatus("Ready");
 render();
